@@ -239,6 +239,12 @@ def bluetooth_enable_ssp(adapter):
 def bluetooth_disable_ssp(adapter):
 	call(["hciconfig", adapter, "sspmode", "0"])
 
+def bluetooth_set_pairable(value):
+	if value:
+		call(["bluetoothctl", "pairable", "on"])
+	else:
+		call(["bluetoothctl", "pairable", "off"])
+
 def set_bt_discoverable(value):
 	bus = dbus.SystemBus()
 	manager = dbus.Interface(bus.get_object("org.bluez", "/"),

@@ -34,7 +34,6 @@ form = form.Form(
                  class_="textEntry", size=64,
                  description="PIN"),
     form.Button('Submit', type="submit", value="pair", html="Start pairing"),
-    form.Button('Submit', type="submit", value="nopin", html="Pair without PIN"),
     form.Button('Submit', type="submit", value="stop_pairing", html="Stop pairing"),
 )
 

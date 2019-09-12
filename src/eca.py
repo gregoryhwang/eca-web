@@ -27,7 +27,7 @@ from util import get_value, get_str_value, get_properties, get_allowed_users, \
     get_dict_value, restyle, is_known_service, is_vpn_service, get_security, \
     is_immutable_service, is_cellular_service, get_service_type, \
     set_root_password, set_bt_discoverable, set_cellular_pin, update_manager_services, \
-    activate_cellular
+    activate_cellular, bluetooth_set_pairable
 import technology
 import tethering
 import rescan
@@ -235,13 +235,15 @@ class Bluetooth:
 
         if input.Submit == "stop_pairing":
             set_bt_discoverable(False)
-            if bluetooth.stop_pairing() == True:
-                return render.error("Pairing stopped")
+            if bluetooth.stop_pairing() is True:
+                # show info and then go back to Index screen
+                return render.info("Pairing stopped", "/bluetooth")
             return render.error("Pairing process could not be stopped. Wait for timeout to happen.")
 
-    # Set the bluetooth device as discoverable so that we can find
-    # it while pairing
+        # Set the bluetooth device as discoverable so that we can find
+        # it while pairing
         error = set_bt_discoverable(True)
+        bluetooth_set_pairable(True)
         if error is None:
             if input.pin != "":
                 use_pin = True
@@ -250,6 +252,7 @@ class Bluetooth:
 
             status = bluetooth.start_pairing(use_pin, input.pin)
             set_bt_discoverable(False)
+            bluetooth_set_pairable(False)
         else:
             return render.error("%s: %s" % (error._dbus_error_name, error.message))
         if status is False:
