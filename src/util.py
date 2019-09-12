@@ -22,6 +22,17 @@ import shutil
 import crypt, uuid
 from subprocess import call
 
+
+bus = dbus.SystemBus()
+# just get the services once.  Need to update as new services come in, or after a forced scan
+manager = dbus.Interface(bus.get_object("net.connman", "/"), "net.connman.Manager")
+manager_services = {}
+
+def update_manager_services():
+	global manager_services
+	global manager
+	manager_services = manager.GetServices()
+
 def get_allowed_users(filename):
 	try:
 		with open(filename) as f:
@@ -60,8 +71,8 @@ def set_root_password(new_password):
 	except:
 		return "Cannot open %s" % new
 
-        salt = "$6$" + uuid.uuid4().hex + "$"
-        new_hashed_password = crypt.crypt(new_password, salt)
+		salt = "$6$" + uuid.uuid4().hex + "$"
+		new_hashed_password = crypt.crypt(new_password, salt)
 
 	for line in content:
 		splitted = line.rstrip('\n').split(":", 2)
@@ -161,17 +172,18 @@ def get_dict_value(properties, key, value):
         return ""
 
 def get_service(service_id):
-	bus = dbus.SystemBus()
+	# bus = dbus.SystemBus()
 	path = "/net/connman/service/" + service_id
 	service = dbus.Interface(bus.get_object("net.connman", path),
 				 "net.connman.Service")
 	return service
 
 def get_services():
-	bus = dbus.SystemBus()
-	manager = dbus.Interface(bus.get_object("net.connman", "/"),
-				 "net.connman.Manager")
-	return manager.GetServices()
+	# bus = dbus.SystemBus()
+	# manager = dbus.Interface(bus.get_object("net.connman", "/"),
+	# 			 "net.connman.Manager")
+	# return manager.GetServices()
+	return manager_services
 
 def get_properties(service_id):
 	service = get_service(service_id)
@@ -181,22 +193,22 @@ def get_properties(service_id):
 		return {}
 
 def get_technology_properties():
-	bus = dbus.SystemBus()
-	manager = dbus.Interface(bus.get_object("net.connman", "/"),
-					"net.connman.Manager")
+	# bus = dbus.SystemBus()
+	# manager = dbus.Interface(bus.get_object("net.connman", "/"),
+	# 				"net.connman.Manager")
         return manager.GetTechnologies()
 
 def get_offlinemode_status():
-	bus = dbus.SystemBus()
-	manager = dbus.Interface(bus.get_object("net.connman", "/"),
-					"net.connman.Manager")
-        return manager.GetProperties()["OfflineMode"]
+	# bus = dbus.SystemBus()
+	# manager = dbus.Interface(bus.get_object("net.connman", "/"),
+	# 				"net.connman.Manager")
+	return manager.GetProperties()["OfflineMode"]
 
 def set_offlinemode_status(new_mode):
-	bus = dbus.SystemBus()
-	manager = dbus.Interface(bus.get_object("net.connman", "/"),
-					"net.connman.Manager")
-        return manager.SetProperty("OfflineMode", new_mode)
+	# bus = dbus.SystemBus()
+	# manager = dbus.Interface(bus.get_object("net.connman", "/"),
+	# 				"net.connman.Manager")
+	return manager.SetProperty("OfflineMode", new_mode)
 
 def get_tethering_status(technology_type):
 	tech_path = "/net/connman/technology/" + technology_type
@@ -277,15 +289,12 @@ def set_tethering_status(technology_type, new_status, ssid = None,
 			pass
 
 
-def get_technology_status(technology_type = None):
+def get_technology_status(technology_type=None):
 	if technology_type != None:
 		tech_path = "/net/connman/technology/" + technology_type
 	else:
-		wired_path = "/net/connman/technology/ethernet"
 		wifi_path = "/net/connman/technology/wifi"
-		cellular_path = "/net/connman/technology/cellular"
 		bluetooth_path = "/net/connman/technology/bluetooth"
-		gadget_path = "/net/connman/technology/gadget"
 		tech_path = ""
 		status_wired = status_wifi = status_cellular = \
 		    status_bluetooth = status_gadget = "OFF"
@@ -302,29 +311,13 @@ def get_technology_status(technology_type = None):
 					status_wifi = "ON"
 				else:
 					status_wifi = "OFF"
-			elif path == wired_path:
-				if properties["Powered"] == dbus.Boolean(True):
-					status_wired = "ON"
-				else:
-					status_wired = "OFF"
-			elif path == cellular_path:
-				if properties["Powered"] == dbus.Boolean(True):
-					status_cellular = "ON"
-				else:
-					status_cellular = "OFF"
 			elif path == bluetooth_path:
 				if properties["Powered"] == dbus.Boolean(True):
 					status_bluetooth = "ON"
 				else:
 					status_bluetooth = "OFF"
-			elif path == gadget_path:
-				if properties["Powered"] == dbus.Boolean(True):
-					status_gadget = "ON"
-				else:
-					status_gadget = "OFF"
 
-	return (status_wired, status_wifi, status_cellular, status_bluetooth,
-		status_gadget)
+	return (status_wifi, status_bluetooth)
 
 def set_technology_status(technology_type, new_status):
 	path = "/net/connman/technology/" + technology_type
@@ -359,7 +352,7 @@ def restyle(content):
 		i = i + 1
 	return "\n".join(lines)
 
-def add_technology_links(content, bt, cellular):
+def add_technology_links(content, bt):
 	# add link to label field so that we can edit the tech if necessary
 	i = 0
 	lines = list(split_lines(content))
@@ -368,14 +361,6 @@ def add_technology_links(content, bt, cellular):
 		if reg != None:
 			tech = reg.group(1)
 			if tech == "bluetooth" and bt == "ON":
-				name = reg.group(2)
-				rest = reg.group(3)
-				lines[i] = "<tr><th><label for=\"" + tech + \
-				    "\"><a href=\"/" + tech + "\">" + \
-				    name + "</a></label>" + rest
-				i = i + 1
-				continue
-			if tech == "cellular" and cellular == "ON":
 				name = reg.group(2)
 				rest = reg.group(3)
 				lines[i] = "<tr><th><label for=\"" + tech + \
@@ -394,8 +379,12 @@ def request_rescan(technology_type):
 		technology = dbus.Interface(bus.get_object("net.connman", path),
 					    "net.connman.Technology")
 		technology.Scan()
+
 	except:
 		return
+	# update the services after a scan
+	finally:
+		update_manager_services()
 
 def is_known_service(service_id):
 	properties = get_properties(service_id)

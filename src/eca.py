@@ -26,7 +26,7 @@ import config
 from util import get_value, get_str_value, get_properties, get_allowed_users, \
     get_dict_value, restyle, is_known_service, is_vpn_service, get_security, \
     is_immutable_service, is_cellular_service, get_service_type, \
-    set_root_password, set_bt_discoverable, set_cellular_pin, \
+    set_root_password, set_bt_discoverable, set_cellular_pin, update_manager_services, \
     activate_cellular
 import technology
 import tethering
@@ -37,6 +37,7 @@ import connect
 import bluetooth
 import cellular
 
+
 web.config.debug = False
 
 _dir = "."
@@ -46,16 +47,12 @@ def dir():
 
 urls = (
     '/', 'Index',
-    '/login', 'Login',
-    '/new_login', 'NewLogin',
-    '/logout', 'Logout',
     '/edit/(.+)', 'Edit',
     '/bluetooth', 'Bluetooth',
     '/cellular', 'Cellular',
 )
 
-title = "ECA Configuration"
-logout = "Logout"
+title = "DDB Connman Configuration"
 help = "Help"
 
 t_globals = {
@@ -70,8 +67,9 @@ t_globals = {
 }
 
 render = web.template.render('templates/', base='layout',
-                             cache = config.cache,
-                             globals = t_globals)
+                             cache=config.cache,
+                             globals=t_globals)
+
 render._keywords['globals']['render'] = render
 
 app = web.application(urls, globals())
@@ -83,114 +81,12 @@ if web.config.get('_session') is None:
 else:
     session = web.config._session
 
-allowed_users_file = "/etc/eca-web/users"
-
-allowed = get_allowed_users(allowed_users_file)
-
-def is_allowed():
-    global allowed
-    if allowed:
-        return True
-    else:
-        allowed = get_allowed_users(allowed_users_file)
-        if allowed:
-            return True
-        return False
-
-def logged():
-    if session.get("logged_in"):
-        return True
-    else:
-        return False
-
-new_login_form = form.Form(
-    form.Textbox('newuser', form.notnull, description="Web UI username"),
-    form.Password('newpasswd', form.notnull, description="Web UI password"),
-    form.Password('root_passwd', form.notnull, description="Root user password"),
-    form.Password('root_newpasswd', form.notnull, description="Root user password again"),
-    form.Button('create', description="Create user"),
-    validators = [ form.Validator("Root user passwords did not match.",
-                               lambda i: i.root_passwd == i.root_newpasswd)],
-    )
-
-class Login:
-    login_form = form.Form(
-        form.Textbox('user', form.notnull, description="Web Username"),
-        form.Password('passwd', form.notnull, description="Web Password"),
-        form.Button('Login', description="Login"),
-        )
-
-    def GET(self):
-        name_ok = is_allowed()
-        if name_ok and logged():
-            raise web.seeother("/")
-        else:
-            if not name_ok:
-                return render.new_login(new_login_form(),
-                                        "Create a username for yourself and set the root user password")
-            return render.login(self.login_form(),
-                                "Please authenticate yourself")
-
-    def POST(self):
-        if is_allowed() and logged():
-            raise web.seeother("/")
-        if not self.login_form.validates():
-            return render.login(self.login_form,
-                                "Login failed. Please authenticate yourself")
-
-        username, password = web.input().user, web.input().passwd
-        salt = ""
-        password_without_hash = ""
-        for userpwd in allowed:
-            (allowed_username, hashed_password) = userpwd
-            if username == allowed_username:
-                split_password = hashed_password.rsplit("$", 1)
-                salt = split_password[0] + "$"
-                password_without_hash = split_password[1]
-                break
-        hashed_password = crypt.crypt(password, salt)
-        if (username, hashed_password) in allowed:
-            session.logged_in = True
-            return view.main_screen()
-        else:
-            session.logged_in = False
-            return render.login_error()
-
-class NewLogin:
-    def POST(self):
-        if not new_login_form.validates():
-            return render.new_login(new_login_form,
-                                "Cannot validate your credentials, try again.")
-
-        msg = set_root_password(web.input().root_passwd)
-        if msg != "":
-            return render.new_login(new_login_form, msg)
-
-        f = open(allowed_users_file,'w')
-        salt = "$6$" + uuid.uuid4().hex + "$"
-        hashed_password = crypt.crypt(web.input().newpasswd, salt)
-
-        f.write(web.input().newuser + " " + hashed_password + "\n")
-        f.close()
-        allowed = get_allowed_users(allowed_users_file)
-        raise web.seeother('/login')
-
-class Logout:
-    def GET(self):
-        session.logged_in = False
-        session.kill()
-        raise web.seeother('/login')
 
 class Index:
     def GET(self):
-        if not logged():
-            raise web.seeother('/login')
-
         return view.main_screen()
 
     def POST(self):
-        if not logged():
-            raise web.seeother("/login")
         input = web.input()
         if input.Submit == "tethering":
             if input["wifi"] == "ON":
@@ -216,7 +112,7 @@ class Index:
 
                 if not input.valid:
                     return render.base(view.listing(),
-                                       title, logout, help)
+                                       title, help)
                 else:
                     tethering.form.note = ""
                     tethering.update(input)
@@ -227,7 +123,7 @@ class Index:
         elif input.Submit == "technology":
             if not technology.form.validates():
                 return render.base(view.listing(),
-                                   title, logout, help)
+                                   title, help)
             else:
                 technology.update(input)
 
@@ -238,27 +134,26 @@ class Index:
 
         return view.main_screen()
 
+
 class Edit:
     def GET(self, service):
-        if not logged():
-            raise web.seeother("/login")
         servicetype = get_service_type(format(service))
         edit.form.get("servicetype").value = servicetype
         connect.psk_form.get("servicetype").value = servicetype
         connect.wep_form.get("servicetype").value = servicetype
-        immutable = is_immutable_service(format(service))
+        # immutable = is_immutable_service(format(service))
         vpn = is_vpn_service(format(service))
         if is_known_service(format(service)) and not vpn:
-            if immutable == True:
-                return render.error("Service %s is immutable." % format(service),
-                                    "Please edit correct config file in <samp>/var/lib/connman</samp> instead.")
+            # if immutable == True:
+            #     return render.error("Service %s is immutable." % format(service),
+            #                         "Please edit correct config file in <samp>/var/lib/connman</samp> instead.")
 
             update_fields(format(service))
             return render.edit("Edit Service", format(service), edit.form)
         elif vpn:
-            if immutable == True:
-                return render.error("VPN service <samp>%s</samp> is immutable."  % format(service),
-                                    "Please edit correct config file in <samp>/var/lib/connman-vpn</samp> instead.")
+            # if immutable == True:
+            #     return render.error("VPN service <samp>%s</samp> is immutable."  % format(service),
+            #                         "Please edit correct config file in <samp>/var/lib/connman-vpn</samp> instead.")
             return render.error("VPN services cannot be edited.",
                                 "Place config file to <samp>/var/lib/connman-vpn</samp> to provision a VPN service.",
                                 "See <a href='http://git.kernel.org/cgit/network/connman/connman.git/tree/doc/vpn-config-format.txt'>config file format specification</a> for details.")
@@ -288,8 +183,6 @@ class Edit:
                 return render.error("Cannot edit service <samp>%s</samp> <samp>%s</samp>" % (format(service), securities))
 
     def POST(self, service):
-        if not logged():
-            raise web.seeother("/login")
         input = web.input()
         if input.Submit == "edit":
             if not edit.form.validates():
@@ -303,11 +196,15 @@ class Edit:
                 return render.error(err)
         elif input.Submit == "connect":
             err = connect.service(input, format(service))
-            if err != None:
+            if err is None:
+                return render.info("Successfully Connected!", "../")
+            else:
                 return render.error(err)
         elif input.Submit == "disconnect":
             err = connect.disconnect_service(input, format(service))
-            if err != None:
+            if err is None:
+                return render.info("Successfully Disconnected!")
+            else:
                 return render.error("Disconnect failed", err._dbus_error_name,
                                     err.message)
         elif input.Submit == "new_psk":
@@ -325,17 +222,15 @@ class Edit:
             if err != None:
                 return render.error(err)
 
+        # update services before going back to base url
+        # update_manager_services()
         raise web.seeother("/")
 
 class Bluetooth:
     def GET(self):
-        if not logged():
-            raise web.seeother('/login')
         return bluetooth.view()
 
     def POST(self):
-        if not logged():
-            raise web.seeother("/login")
         input = web.input()
 
         if input.Submit == "stop_pairing":
@@ -344,10 +239,10 @@ class Bluetooth:
                 return render.error("Pairing stopped")
             return render.error("Pairing process could not be stopped. Wait for timeout to happen.")
 
-	# Set the bluetooth device as discoverable so that we can find
-	# it while pairing
+    # Set the bluetooth device as discoverable so that we can find
+    # it while pairing
         error = set_bt_discoverable(True)
-        if error == None:
+        if error is None:
             if input.pin != "":
                 use_pin = True
             else:
@@ -357,19 +252,16 @@ class Bluetooth:
             set_bt_discoverable(False)
         else:
             return render.error("%s: %s" % (error._dbus_error_name, error.message))
-        if status == False:
+        if status is False:
             return render.error("Pairing failed")
         return view.main_screen()
 
+
 class Cellular:
     def GET(self):
-        if not logged():
-            raise web.seeother('/login')
         return cellular.view()
 
     def POST(self):
-        if not logged():
-            raise web.seeother("/login")
         if not cellular.form.validates():
             return cellular.view()
 

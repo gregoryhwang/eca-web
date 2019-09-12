@@ -21,6 +21,8 @@ import web
 from web import form
 from subprocess import Popen, PIPE, STDOUT
 from time import sleep
+# view must be imported before eca to avoid circular dependency
+import view
 import eca
 from util import get_bt_devices, bluetooth_enable_ssp, bluetooth_disable_ssp
 
@@ -36,14 +38,17 @@ form = form.Form(
     form.Button('Submit', type="submit", value="stop_pairing", html="Stop pairing"),
 )
 
+
 def listing(**k):
     return eca.render.bt_help()
+
 
 def view():
     return eca.render.bluetooth(listing(), form, "Bluetooth configuration")
 
+
 def setup_agent(use_pin):
-    if use_pin == True:
+    if use_pin is True:
         cap = "KeyboardOnly"
     else:
         cap = "NoInputNoOutput"
@@ -52,9 +57,10 @@ def setup_agent(use_pin):
                   shell=False, stdout=PIPE, stdin=PIPE, stderr=PIPE)
     return agent
 
+
 def bt_pair(use_pin, pin, agent):
     sleep(1)
-    if use_pin == True:
+    if use_pin is True:
         print >> agent.stdin, "%s\n" % pin
         agent.stdin.flush()
     agent.wait()
@@ -63,10 +69,12 @@ def bt_pair(use_pin, pin, agent):
     else:
         return False
 
+
 def start_agent(use_pin, pin):
     global agent
     agent = setup_agent(use_pin)
     return bt_pair(use_pin, pin, agent)
+
 
 def stop_pairing():
     try:
@@ -76,10 +84,11 @@ def stop_pairing():
     bluetooth_enable_ssp("hci0")
     return True
 
+
 def start_pairing(use_pin, pin):
     # We turn off the secure simple pairing so that the user is able
     # to know the PIN code.
-    # TBD: fix the adater name later
+    # TBD: fix the adapter name later
     bluetooth_disable_ssp("hci0")
     ret = start_agent(use_pin, pin)
     bluetooth_enable_ssp("hci0")

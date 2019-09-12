@@ -13,6 +13,7 @@ eca_web_sources = \
 	src/eca.py \
 	src/connect.py \
 	src/bluetooth.py \
+	src/bluezutils.py \
 	src/technology.py \
 	src/cellular.py
 
@@ -25,6 +26,7 @@ static_sources = \
 
 template_sources = \
 	src/templates/error.html \
+	src/templates/info.html  \
 	src/templates/login_error.html \
 	src/templates/layout.html \
 	src/templates/new_login.html \

@@ -20,7 +20,7 @@
 
 from __future__ import absolute_import, print_function, unicode_literals
 
-import gobject
+from gi.repository import GObject as gobject
 
 import sys
 import errno

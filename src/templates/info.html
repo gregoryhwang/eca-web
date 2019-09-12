@@ -1,0 +1,12 @@
+$def with (msg, return_url=None, msg2=None, msg3=None)
+
+<div class="info">
+  Info: $:msg<br>
+  $if msg2:
+     $:msg2<br>
+  $if msg3:
+     $:msg3<br>
+</div>
+
+$if return_url:
+    <meta http-equiv="refresh" content="3;url=$return_url" />
