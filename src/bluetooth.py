@@ -29,10 +29,6 @@ from util import get_bt_devices, bluetooth_enable_ssp, bluetooth_disable_ssp
 agent = None
 
 form = form.Form(
-    form.Textbox("pin", form.notnull,
-                 form.regexp('^\d+$', 'Not a number.'),
-                 class_="textEntry", size=64,
-                 description="PIN"),
     form.Button('Submit', type="submit", value="pair", html="Start pairing"),
     form.Button('Submit', type="submit", value="stop_pairing", html="Stop pairing"),
 )
@@ -47,10 +43,12 @@ def view():
 
 
 def setup_agent(use_pin):
-    if use_pin is True:
-        cap = "KeyboardOnly"
-    else:
-        cap = "NoInputNoOutput"
+    del use_pin  # only allow NoInputNoOutput agents to simplify pairing
+    # if use_pin is True:
+    #     cap = "KeyboardOnly"
+    # else:
+
+    cap = "NoInputNoOutput"
 
     agent = Popen(["%s/agent-helper-bt.py" % eca.dir(), "-c", cap],
                   shell=False, stdout=PIPE, stdin=PIPE, stderr=PIPE)
@@ -85,10 +83,8 @@ def stop_pairing():
 
 
 def start_pairing(use_pin, pin):
-    # We turn off the secure simple pairing so that the user is able
-    # to know the PIN code.
     # TBD: fix the adapter name later
-    bluetooth_disable_ssp("hci0")
-    ret = start_agent(use_pin, pin)
+    # always use secure simple pairing
     bluetooth_enable_ssp("hci0")
+    ret = start_agent(use_pin, pin)
     return ret

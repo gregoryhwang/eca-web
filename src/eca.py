@@ -245,11 +245,12 @@ class Bluetooth:
         error = set_bt_discoverable(True)
         bluetooth_set_pairable(True)
         if error is None:
-            if input.pin != "":
-                use_pin = True
-            else:
-                use_pin = False
-
+            # if input.pin != "":
+            #     use_pin = True
+            # else:
+            #     use_pin = False
+            input.pin = ""
+            use_pin = False
             status = bluetooth.start_pairing(use_pin, input.pin)
             set_bt_discoverable(False)
             bluetooth_set_pairable(False)
