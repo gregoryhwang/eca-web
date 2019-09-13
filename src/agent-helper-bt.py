@@ -91,12 +91,10 @@ class Agent(dbus.service.Object):
 	@dbus.service.method(AGENT_INTERFACE,
 					in_signature="os", out_signature="")
 	def AuthorizeService(self, device, uuid):
-		print_err("AuthorizeService (%s, %s)" % (device, uuid))
-		# currently we always authorize
-		authorize = "yes"
-		if (authorize == "yes"):
-			return
-		raise Rejected("Connection rejected by user")
+		print_err("Automatically Authorizing Service (%s, %s)" % (device, uuid))
+		# currently we always authorize and trust
+		set_trusted(device)
+		return
 
 	@dbus.service.method(AGENT_INTERFACE,
 					in_signature="o", out_signature="s")
@@ -165,7 +163,7 @@ if __name__ == '__main__':
 
 	bus = dbus.SystemBus()
 
-	capability = "KeyboardDisplay"
+	capability = "NoInputNoOutput"
 
 	parser = OptionParser()
 	parser.add_option("-i", "--adapter", action="store",
@@ -179,14 +177,16 @@ if __name__ == '__main__':
 					default=TIMEOUT)
 	(options, args) = parser.parse_args()
 	if options.capability:
-		capability  = options.capability
+		capability = options.capability
 
 	path = "/eca/agent"
 	agent = Agent(bus, path)
 
+	print_err("Capability for agent-helper-bt is (%s)" % (capability))
+
 	mainloop = gobject.MainLoop()
 
-	obj = bus.get_object(BUS_NAME, "/org/bluez");
+	obj = bus.get_object(BUS_NAME, "/org/bluez")
 	manager = dbus.Interface(obj, "org.bluez.AgentManager1")
 	manager.RegisterAgent(path, capability)
 
